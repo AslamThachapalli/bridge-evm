@@ -1,0 +1,41 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    url      = env("DATABASE_URL")
+    provider = "postgresql"
+}
+
+enum Chain {
+    ETH
+    BASE
+}
+
+enum ETHBridgeStatus {
+    Initiated
+    Locked
+    Minted
+}
+
+model BlockStatus {
+    id                 String   @id @default(uuid())
+    chain              Chain    @unique
+    lastProcessedBlock Int
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
+}
+
+model EthToBaseBridge {
+    id         String     @id @default(uuid())
+    depositor  String
+    lockTxHash String
+    amount     Int
+    mintTxHash String?
+    status     ETHBridgeStatus
+    createdAt  DateTime   @default(now())
+    updatedAt  DateTime   @updatedAt
+
+    @@unique([depositor, lockTxHash])
+    @@unique([depositor, mintTxHash])
+}

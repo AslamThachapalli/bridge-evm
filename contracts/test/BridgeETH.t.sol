@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.23;
 
 import {Test} from "forge-std/Test.sol";
 import "src/BridgeETH.sol";
@@ -18,7 +18,6 @@ contract BridgeETHTest is Test {
     }
 
     function testLock() public {
-        aslc.mint(address(this), 100);
         aslc.approve(address(bridgeEth), 50);
 
         vm.expectEmit(true, false, false, true);
@@ -27,13 +26,11 @@ contract BridgeETHTest is Test {
     }
 
     function test_RevertWhen_TokenIsNotApproved() public {
-        aslc.mint(address(this), 100);
         vm.expectRevert();
         bridgeEth.lock(50);
     }
 
     function test_RevertWhen_TransferingMoreThanApprovedAmount() public {
-        aslc.mint(address(this), 100);
         aslc.approve(address(bridgeEth), 50);
 
         vm.expectRevert();
