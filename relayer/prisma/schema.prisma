@@ -18,6 +18,12 @@ enum ETHBridgeStatus {
     Minted
 }
 
+enum BaseBridgeStatus {
+    Initiated
+    Burnt
+    Unlocked
+}
+
 model BlockStatus {
     id                 String   @id @default(uuid())
     chain              Chain    @unique
@@ -35,7 +41,15 @@ model EthToBaseBridge {
     status     ETHBridgeStatus
     createdAt  DateTime   @default(now())
     updatedAt  DateTime   @updatedAt
+}
 
-    @@unique([depositor, lockTxHash])
-    @@unique([depositor, mintTxHash])
+model BaseToEthBridge {
+    id         String     @id @default(uuid())
+    burner  String
+    burnTxHash String
+    amount     Int
+    unlockTxHash String?
+    status     BaseBridgeStatus
+    createdAt  DateTime   @default(now())
+    updatedAt  DateTime   @updatedAt
 }
