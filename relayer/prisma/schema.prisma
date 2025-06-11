@@ -12,18 +12,6 @@ enum Chain {
     BASE
 }
 
-enum ETHBridgeStatus {
-    Initiated
-    Locked
-    Minted
-}
-
-enum BaseBridgeStatus {
-    Initiated
-    Burnt
-    Unlocked
-}
-
 model BlockStatus {
     id                 String   @id @default(uuid())
     chain              Chain    @unique
@@ -32,24 +20,44 @@ model BlockStatus {
     updatedAt          DateTime @updatedAt
 }
 
-model EthToBaseBridge {
-    id         String     @id @default(uuid())
-    depositor  String
-    lockTxHash String
-    amount     Int
-    mintTxHash String?
-    status     ETHBridgeStatus
-    createdAt  DateTime   @default(now())
-    updatedAt  DateTime   @updatedAt
+model Locks {
+    id        String   @id @default(uuid())
+    mintId    String?
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    mint Mints? @relation(fields: [mintId], references: [id])
 }
 
-model BaseToEthBridge {
-    id         String     @id @default(uuid())
-    burner  String
-    burnTxHash String
-    amount     Int
-    unlockTxHash String?
-    status     BaseBridgeStatus
-    createdAt  DateTime   @default(now())
-    updatedAt  DateTime   @updatedAt
+model Mints {
+    id        String   @id @default(uuid())
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    locks Locks[]
+}
+
+model Burns {
+    id        String   @id @default(uuid())
+    unlockId  String?
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    unlock Unlocks? @relation(fields: [unlockId], references: [id])
+}
+
+model Unlocks {
+    id        String   @id @default(uuid())
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    burns Burns[]
 }

@@ -1,4 +1,4 @@
-import { BaseBridgeStatus, Chain, ETHBridgeStatus } from "@prisma/client";
+import { Chain } from "@prisma/client";
 import { BRIDGE_BASE_ABI } from "contracts/bridgeBase";
 import { BRIDGE_ETH_ABI } from "contracts/bridgeEth";
 import { Contract, JsonRpcProvider, Wallet } from "ethers";
@@ -32,51 +32,39 @@ export const transferToken = async ({
 
     switch (chain) {
         case "ETH":
-            const ethBridgeDb = await prisma.ethToBaseBridge.create({
-                data: {
-                    depositor: user,
-                    amount: parseInt(amount),
-                    lockTxHash: txHash,
-                    status: ETHBridgeStatus.Initiated,
-                },
-                select: { id: true },
-            });
-            provider = new JsonRpcProvider(ethSepoliaRpc);
+            provider = new JsonRpcProvider(baseSepoliaRpc);
             wallet = new Wallet(privateKey, provider);
-            contract = new Contract(baseBridgeRpc, BRIDGE_ETH_ABI, wallet);
+            contract = new Contract(baseBridgeRpc, BRIDGE_BASE_ABI, wallet);
             const baseTx = await contract.lockedOnOppositeChain(
                 user,
                 amount,
                 nonce
             );
             await baseTx.wait();
-            await prisma.ethToBaseBridge.update({
-                where: { id: ethBridgeDb.id },
-                data: { status: ETHBridgeStatus.Locked },
+            await prisma.locks.create({
+                data: {
+                    user,
+                    amount: parseInt(amount),
+                    txHash,
+                },
             });
             break;
         case "BASE":
-            const baseBridgeDb = await prisma.baseToEthBridge.create({
-                data: {
-                    burner: user,
-                    amount: parseInt(amount),
-                    burnTxHash: txHash,
-                    status: BaseBridgeStatus.Initiated,
-                },
-                select: { id: true },
-            });
-            provider = new JsonRpcProvider(baseSepoliaRpc);
+            provider = new JsonRpcProvider(ethSepoliaRpc);
             wallet = new Wallet(privateKey, provider);
-            contract = new Contract(ethBridgeRpc, BRIDGE_BASE_ABI, wallet);
+            contract = new Contract(ethBridgeRpc, BRIDGE_ETH_ABI, wallet);
             const ethTx = await contract.burnedOnOppositeChain(
                 user,
                 amount,
                 nonce
             );
             await ethTx.wait();
-            await prisma.baseToEthBridge.update({
-                where: { id: baseBridgeDb.id },
-                data: { status: BaseBridgeStatus.Burnt },
+            await prisma.burns.create({
+                data: {
+                    user,
+                    amount: parseInt(amount),
+                    txHash,
+                },
             });
             break;
     }
