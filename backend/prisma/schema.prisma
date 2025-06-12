@@ -1,0 +1,63 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    url      = env("DATABASE_URL")
+    provider = "postgresql"
+}
+
+enum Chain {
+    ETH
+    BASE
+}
+
+model BlockStatus {
+    id                 String   @id @default(uuid())
+    chain              Chain    @unique
+    lastProcessedBlock Int
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
+}
+
+model Locks {
+    id        String   @id @default(uuid())
+    mintId    String?
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    mint Mints? @relation(fields: [mintId], references: [id])
+}
+
+model Mints {
+    id        String   @id @default(uuid())
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    locks Locks[]
+}
+
+model Burns {
+    id        String   @id @default(uuid())
+    unlockId  String?
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    unlock Unlocks? @relation(fields: [unlockId], references: [id])
+}
+
+model Unlocks {
+    id        String   @id @default(uuid())
+    user      String
+    txHash    String   @unique
+    amount    Int
+    createdAt DateTime @default(now())
+
+    burns Burns[]
+}
