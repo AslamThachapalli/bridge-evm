@@ -1,34 +1,38 @@
 import { Chain } from "@prisma/client";
-import { BRIDGE_BASE_ABI } from "contracts/bridgeBase";
-import { BRIDGE_ETH_ABI } from "contracts/bridgeEth";
-import { Contract, JsonRpcProvider, Interface, ContractEvent } from "ethers";
-import prisma from "utils/prisma";
-import { transferToken } from "utils/transferToken";
+import { BRIDGE_BASE_ABI } from "../contracts/bridgeBase";
+import { BRIDGE_ETH_ABI } from "../contracts/bridgeEth";
+import { JsonRpcProvider, Interface, id } from "ethers";
+import prisma from "../utils/prisma";
+import { transferToken } from "../utils/transferToken";
 import {
-    ethBridgeRpc,
+    ethBridgeAddress,
     ethSepoliaRpc,
-    baseBridgeRpc,
+    baseBridgeAddress,
     baseSepoliaRpc,
-} from "utils/constants";
+} from "../utils/constants";
 
 export const listenToBridgeEvent = async (chain: Chain) => {
     let provider: JsonRpcProvider;
-    let contract: Contract;
     let bridgeInterface: Interface;
-    let filter: ContractEvent;
+    let filter;
 
     switch (chain) {
         case "ETH":
             provider = new JsonRpcProvider(ethSepoliaRpc);
-            contract = new Contract(ethBridgeRpc, BRIDGE_ETH_ABI, provider);
             bridgeInterface = new Interface(BRIDGE_ETH_ABI);
-            filter = contract.filters.Deposit;
-
+            filter = {
+                address: ethBridgeAddress,
+                topics: [id("Deposit(address,uint256,uint256)")],
+            };
+            break;
         case "BASE":
             provider = new JsonRpcProvider(baseSepoliaRpc);
-            contract = new Contract(baseBridgeRpc, BRIDGE_BASE_ABI, provider);
             bridgeInterface = new Interface(BRIDGE_BASE_ABI);
-            filter = contract.filters.Burn;
+            filter = {
+                address: baseBridgeAddress,
+                topics: [id("Burn(address,uint256,uint256)")],
+            };
+            break;
     }
 
     let latestBlock = await provider.getBlockNumber();
@@ -42,7 +46,7 @@ export const listenToBridgeEvent = async (chain: Chain) => {
         blockStatus = await prisma.blockStatus.create({
             data: {
                 chain,
-                lastProcessedBlock: 0,
+                lastProcessedBlock: latestBlock,
             },
             select: { lastProcessedBlock: true },
         });
@@ -53,7 +57,7 @@ export const listenToBridgeEvent = async (chain: Chain) => {
     const logs = await provider.getLogs({
         ...filter,
         fromBlock: blockStatus.lastProcessedBlock + 1,
-        toBlock: latestBlock,
+        toBlock: "latest",
     });
 
     for (let log of logs) {

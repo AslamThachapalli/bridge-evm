@@ -1,13 +1,13 @@
 import { Chain } from "@prisma/client";
-import { BRIDGE_BASE_ABI } from "contracts/bridgeBase";
-import { BRIDGE_ETH_ABI } from "contracts/bridgeEth";
-import { Contract, JsonRpcProvider, Wallet } from "ethers";
+import { BRIDGE_BASE_ABI } from "../contracts/bridgeBase";
+import { BRIDGE_ETH_ABI } from "../contracts/bridgeEth";
+import { Contract, formatEther, JsonRpcProvider, Wallet } from "ethers";
 import prisma from "./prisma";
 import {
     privateKey,
-    ethBridgeRpc,
+    ethBridgeAddress,
     ethSepoliaRpc,
-    baseBridgeRpc,
+    baseBridgeAddress,
     baseSepoliaRpc,
 } from "./constants";
 
@@ -34,7 +34,7 @@ export const transferToken = async ({
         case "ETH":
             provider = new JsonRpcProvider(baseSepoliaRpc);
             wallet = new Wallet(privateKey, provider);
-            contract = new Contract(baseBridgeRpc, BRIDGE_BASE_ABI, wallet);
+            contract = new Contract(baseBridgeAddress, BRIDGE_BASE_ABI, wallet);
             const baseTx = await contract.lockedOnOppositeChain(
                 user,
                 amount,
@@ -44,7 +44,7 @@ export const transferToken = async ({
             await prisma.locks.create({
                 data: {
                     user,
-                    amount: parseInt(amount),
+                    amount: parseFloat(formatEther(amount)),
                     txHash,
                 },
             });
@@ -52,7 +52,7 @@ export const transferToken = async ({
         case "BASE":
             provider = new JsonRpcProvider(ethSepoliaRpc);
             wallet = new Wallet(privateKey, provider);
-            contract = new Contract(ethBridgeRpc, BRIDGE_ETH_ABI, wallet);
+            contract = new Contract(ethBridgeAddress, BRIDGE_ETH_ABI, wallet);
             const ethTx = await contract.burnedOnOppositeChain(
                 user,
                 amount,
@@ -62,7 +62,7 @@ export const transferToken = async ({
             await prisma.burns.create({
                 data: {
                     user,
-                    amount: parseInt(amount),
+                    amount: parseFloat(formatEther(amount)),
                     txHash,
                 },
             });

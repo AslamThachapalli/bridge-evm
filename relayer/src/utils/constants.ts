@@ -9,19 +9,19 @@ const baseSepoliaRpc = shouldBeDefined(
     process.env.BASE_SEPOLIA_RPC,
     "BASE_SEPOLIA_RPC"
 );
-const ethBridgeRpc = shouldBeDefined(
+const ethBridgeAddress = shouldBeDefined(
     process.env.ETH_BRIDGE_CONTRACT_ADDRESS,
     "ETH_BRIDGE_CONTRACT_ADDRESS"
 );
-const baseBridgeRpc = shouldBeDefined(
+const baseBridgeAddress = shouldBeDefined(
     process.env.BASE_BRIDGE_CONTRACT_ADDRESS,
     "BASE_BRIDGE_CONTRACT_ADDRESS"
 );
 
 export {
     privateKey,
-    ethBridgeRpc,
+    ethBridgeAddress,
     ethSepoliaRpc,
-    baseBridgeRpc,
+    baseBridgeAddress,
     baseSepoliaRpc,
 };

@@ -3,7 +3,8 @@
     "version": "1.0.0",
     "main": "dist/index.js",
     "scripts": {
-        "start": "tsc -b && node dist/index.js"
+        "build:watch": "tsc -b --watch",
+        "dev": "npx nodemon dist/index.js"
     },
     "keywords": [],
     "author": "",

@@ -31,6 +31,12 @@ export const BRIDGE_ETH_ABI = [
                 name: "amount",
                 type: "uint256",
             },
+            {
+                indexed: false,
+                internalType: "uint256",
+                name: "nonce",
+                type: "uint256",
+            },
         ],
         name: "Deposit",
         type: "event",
@@ -58,6 +64,7 @@ export const BRIDGE_ETH_ABI = [
         inputs: [
             { internalType: "address", name: "_userAccount", type: "address" },
             { internalType: "uint256", name: "_amount", type: "uint256" },
+            { internalType: "uint256", name: "_nonce", type: "uint256" },
         ],
         name: "burnedOnOppositeChain",
         outputs: [],
