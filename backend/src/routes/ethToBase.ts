@@ -1,5 +1,5 @@
 import { Router } from "express";
-import prisma from "utils/prisma";
+import prisma from "../utils/prisma";
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.get("/pending/:address", async (req, res) => {
 
     res.json({
         mintableAmount: totalAmount,
-        unmintedLocks: locks.map((item) => ({
+        pendingLocks: locks.map((item) => ({
             id: item.id,
             amount: item.amount,
             tx: item.txHash,
@@ -66,7 +66,7 @@ router.post("/mint", async (req, res) => {
         },
     });
 
-    for (let id in lockIds) {
+    for (let id of lockIds) {
         await prisma.locks.update({
             where: {
                 id,

@@ -1,13 +1,28 @@
-import React, { useState } from "react";
-import { ArrowRightIcon, ArrowUpDown } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ArrowUpDown, CheckCircle, AlertCircle } from "lucide-react";
 import { ChainSelector } from "./ChainSelector";
-import { TransactionStatus } from "./TransactionStatus";
+// import { TransactionStatus } from "./TransactionStatus";
 import { PendingTransactions } from "./PendingTransactions";
+import { useQuery } from "@tanstack/react-query";
 import {
-    useTransactions,
+    useAccount,
+    useWriteContract,
+    useChainId,
+    useSwitchChain,
+    // useWaitForTransactionReceipt,
+} from "wagmi";
+import { useTokenApproval } from "../hooks/useTokenApproval";
+import { getBridgeAddress } from "@/config/contracts";
+import { BRIDGE_ETH_ABI } from "@/lib/EthBridgeAbi";
+import { parseEther } from "viem";
+import { BRIDGE_BASE_ABI } from "@/lib/BaseBridgeAbi";
+import {
     type ChainType,
     type TransactionType,
-} from "./TransactionContext";
+    type PendingMintsResponse,
+    type PendingUnlocksResponse,
+} from "@/types/bridge";
+import { baseSepolia, sepolia } from "wagmi/chains";
 
 export const BridgeInterface = () => {
     const [fromChain, setFromChain] = useState<ChainType>("ethereum");
@@ -15,16 +30,70 @@ export const BridgeInterface = () => {
     const [amount, setAmount] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [activeTab, setActiveTab] = useState<"bridge" | "pending">("bridge");
+    const [needsApproval, setNeedsApproval] = useState(false);
+    const { address } = useAccount();
     const {
-        addTransaction,
-        pendingTransaction,
-        setPendingTransaction,
-        getPendingLocks,
-        getPendingBurns,
-    } = useTransactions();
-    const pendingLocks = getPendingLocks();
-    const pendingBurns = getPendingBurns();
-    const hasPending = pendingLocks.length > 0 || pendingBurns.length > 0;
+        data: writeData,
+        writeContract,
+        isPending: isWritePending,
+    } = useWriteContract();
+    const chainId = useChainId();
+    const { switchChain } = useSwitchChain();
+
+    useEffect(() => {
+        if (chainId !== sepolia.id) {
+            switchChain({ chainId: sepolia.id });
+        }
+    }, []);
+
+    // Token approval hook for the source chain
+    const tokenApproval = useTokenApproval(fromChain);
+
+    const { data: pendingMints, refetch: refetchPendingMints } =
+        useQuery<PendingMintsResponse>({
+            queryKey: ["pendingMints", address],
+            queryFn: async () => {
+                const res = await fetch(
+                    `http://localhost:5000/eth-to-base/pending/${address}`
+                );
+                const data = await res.json();
+                return data;
+            },
+            enabled: !!address,
+        });
+
+    const { data: pendingUnlocks, refetch: refetchPendingUnlocks } =
+        useQuery<PendingUnlocksResponse>({
+            queryKey: ["pendingUnlocks", address],
+            queryFn: async () => {
+                const res = await fetch(
+                    `http://localhost:5000/base-to-eth/pending/${address}`
+                );
+                const data = await res.json();
+                return data;
+            },
+            enabled: !!address,
+        });
+
+    const hasPending =
+        (pendingMints?.pendingLocks.length || 0) > 0 ||
+        (pendingUnlocks?.pendingBurns.length || 0) > 0;
+
+    // Check if approval is needed when amount changes
+    useEffect(() => {
+        if (amount && fromChain === "ethereum" && toChain === "base") {
+            const hasEnoughAllowance = tokenApproval.checkAllowance(amount);
+            setNeedsApproval(!hasEnoughAllowance);
+        } else {
+            setNeedsApproval(false);
+        }
+
+        if (amount && fromChain === "base" && toChain === "ethereum") {
+            const canBurn = tokenApproval.checkCanBurn(amount);
+            console.log("canBurn", canBurn);
+            setNeedsApproval(!canBurn);
+        }
+    }, [amount, fromChain, toChain, tokenApproval]);
 
     const getTransactionType = (): TransactionType => {
         if (fromChain === "ethereum" && toChain === "base") {
@@ -39,34 +108,113 @@ export const BridgeInterface = () => {
     };
 
     const handleSwapChains = () => {
+        if (fromChain === "ethereum" && toChain === "base") {
+            switchChain({ chainId: baseSepolia.id });
+        } else if (fromChain === "base" && toChain === "ethereum") {
+            switchChain({ chainId: sepolia.id });
+        }
         setFromChain(toChain);
         setToChain(fromChain);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        // Simulate transaction processing
-        const newTx = addTransaction({
-            type: getTransactionType(),
-            fromChain,
-            toChain,
-            amount,
-            status: "pending",
-            hash: `0x${Math.random().toString(16).substr(2, 40)}`,
-        });
-        setPendingTransaction(newTx);
-        // Simulate transaction confirmation after delay
-        setTimeout(() => {
-            setPendingTransaction(null);
-            setIsProcessing(false);
-            setAmount("");
-        }, 5000);
+    const handleApprove = async () => {
+        if (!amount) return;
+        await tokenApproval.approveToken(amount);
     };
 
-    if (pendingTransaction) {
-        return <TransactionStatus transaction={pendingTransaction} />;
-    }
+    const [lockedHash, setLockedHash] = useState<string | null>(null);
+    const [burntHash, setBurntHash] = useState<string | null>(null);
+
+    const { refetch: refetchHasLocked } = useQuery({
+        queryKey: ["hasLocked", lockedHash],
+        queryFn: async () => {
+            const response = await fetch(
+                `http://localhost:5000/eth-to-base/hasLocked/${lockedHash}`
+            );
+            const { hasLocked } = await response.json();
+            if (hasLocked) {
+                refetchPendingMints();
+                setTimeout(() => setLockedHash(null), 500);
+            }
+            return hasLocked as boolean;
+        },
+        refetchInterval: 1000,
+        enabled: lockedHash !== null,
+    });
+
+    const { refetch: refetchHasBurnt } = useQuery({
+        queryKey: ["hasBurnt", burntHash],
+        queryFn: async () => {
+            const response = await fetch(
+                `http://localhost:5000/base-to-eth/hasBurnt/${burntHash}`
+            );
+            const { hasBurnt } = await response.json();
+            if (hasBurnt) {
+                refetchPendingUnlocks();
+                setTimeout(() => setBurntHash(null), 500);
+            }
+            return hasBurnt as boolean;
+        },
+        refetchInterval: 1000,
+        enabled: burntHash !== null,
+    });
+
+    useEffect(() => {
+        if (writeData) {
+            if (getTransactionType() === "lock") {
+                setLockedHash(writeData);
+                refetchHasLocked();
+            } else if (getTransactionType() === "burn") {
+                setBurntHash(writeData);
+                refetchHasBurnt();
+            }
+        }
+    }, [writeData, getTransactionType()]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Check if approval is needed for lock or burn transactions
+        if (needsApproval) {
+            return; // Don't proceed if approval is needed
+        }
+
+        setIsProcessing(true);
+
+        switch (getTransactionType()) {
+            case "lock":
+                if (chainId !== sepolia.id) {
+                    switchChain({ chainId: sepolia.id });
+                }
+                writeContract({
+                    address: getBridgeAddress(fromChain) as `0x${string}`,
+                    abi: BRIDGE_ETH_ABI,
+                    functionName: "lock",
+                    args: [parseEther(amount)],
+                });
+                break;
+            case "burn":
+                if (chainId !== baseSepolia.id) {
+                    switchChain({ chainId: baseSepolia.id });
+                }
+                writeContract({
+                    chainId: baseSepolia.id,
+                    address: getBridgeAddress(fromChain) as `0x${string}`,
+                    abi: BRIDGE_BASE_ABI,
+                    functionName: "burn",
+                    args: [parseEther(amount)],
+                });
+                break;
+        }
+    };
+
+    // Reset processing state when transaction is complete
+    useEffect(() => {
+        if (!isWritePending && isProcessing) {
+            setIsProcessing(false);
+            setAmount("");
+        }
+    }, [isWritePending, isProcessing]);
 
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
@@ -94,7 +242,9 @@ export const BridgeInterface = () => {
                                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             }`}
                         >
-                            Pending ({pendingLocks.length + pendingBurns.length}
+                            Pending (
+                            {(pendingMints?.pendingLocks.length || 0) +
+                                (pendingUnlocks?.pendingBurns.length || 0)}
                             )
                         </button>
                     </div>
@@ -140,26 +290,130 @@ export const BridgeInterface = () => {
                                 type="number"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
+                                min={0}
                                 placeholder="0.0"
                                 className="w-full border border-gray-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 required
                             />
                             <div className="absolute right-3 top-3 text-gray-400">
-                                ETH
+                                {fromChain === "ethereum" ? "ASLC" : "BASLC"}
                             </div>
                         </div>
+                        {/* Token balance and allowance info */}
+                        {fromChain === "ethereum" &&
+                            toChain === "base" &&
+                            amount && (
+                                <div className="mt-2 text-sm text-gray-500">
+                                    <div>
+                                        Balance:{" "}
+                                        {tokenApproval.getBalanceFormatted()}{" "}
+                                        ASLC
+                                    </div>
+                                    <div>
+                                        Allowance:{" "}
+                                        {tokenApproval.getAllowanceFormatted()}{" "}
+                                        ASLC
+                                    </div>
+                                </div>
+                            )}
                     </div>
+
+                    {/* Approval section for lock transactions */}
+                    {getTransactionType() === "lock" &&
+                        needsApproval &&
+                        amount && (
+                            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-yellow-800">
+                                            Token Approval Required
+                                        </h3>
+                                        <p className="text-sm text-yellow-700 mt-1">
+                                            Before locking tokens, you need to
+                                            approve the bridge contract to spend
+                                            your tokens.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleApprove}
+                                            disabled={tokenApproval.isApproving}
+                                            className={`mt-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                                tokenApproval.isApproving
+                                                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "bg-yellow-600 hover:bg-yellow-700 text-white"
+                                            }`}
+                                        >
+                                            {tokenApproval.isApproving
+                                                ? "Approving..."
+                                                : "Approve Tokens"}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    {/* Success message when approval is complete */}
+                    {getTransactionType() === "lock" &&
+                        !needsApproval &&
+                        amount &&
+                        tokenApproval.isApprovalSuccess && (
+                            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <div>
+                                        <h3 className="text-sm font-medium text-green-800">
+                                            Approval Complete
+                                        </h3>
+                                        <p className="text-sm text-green-700">
+                                            You can now proceed with the bridge
+                                            transaction.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    {getTransactionType() === "burn" &&
+                        needsApproval &&
+                        amount && (
+                            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-yellow-800">
+                                            Insufficient Balance
+                                        </h3>
+                                        <p className="text-sm text-yellow-700 mt-1">
+                                            You do not have enough tokens to
+                                            burn.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                     <div className="mt-8">
                         <button
                             type="submit"
-                            disabled={isProcessing || !amount}
+                            disabled={
+                                isProcessing ||
+                                !amount ||
+                                (getTransactionType() === "lock" &&
+                                    needsApproval) ||
+                                isWritePending
+                            }
                             className={`w-full py-3 rounded-lg font-medium transition-all ${
-                                isProcessing || !amount
+                                isProcessing ||
+                                !amount ||
+                                (getTransactionType() === "lock" &&
+                                    needsApproval) ||
+                                isWritePending
                                     ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg"
                             }`}
                         >
-                            {isProcessing
+                            {isProcessing || isWritePending
                                 ? "Processing..."
                                 : getActionButtonText()}
                         </button>
@@ -167,12 +421,13 @@ export const BridgeInterface = () => {
                 </form>
             ) : (
                 <PendingTransactions
-                    pendingLocks={pendingLocks}
-                    pendingBurns={pendingBurns}
+                    pendingLocks={pendingMints?.pendingLocks || []}
+                    pendingBurns={pendingUnlocks?.pendingBurns || []}
                 />
             )}
         </div>
     );
+
     function getActionButtonText() {
         switch (getTransactionType()) {
             case "lock":

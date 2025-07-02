@@ -12,6 +12,7 @@ import {
 } from "../utils/constants";
 
 export const listenToBridgeEvent = async (chain: Chain) => {
+    console.log("Listening to bridge event for chain", chain);
     let provider: JsonRpcProvider;
     let bridgeInterface: Interface;
     let filter;

@@ -1,58 +1,21 @@
 import React from "react";
-import { XIcon } from "lucide-react";
-
-interface WalletOption {
-    id: string;
-    name: string;
-    icon: string;
-    description?: string;
-}
+import { Wallet2Icon, XIcon } from "lucide-react";
+import { useAccount, useConnect } from "wagmi";
 
 interface WalletModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConnect: (walletId: string) => void;
 }
-
-const wallets: WalletOption[] = [
-    {
-        id: "metamask",
-        name: "MetaMask",
-        icon: "https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg",
-        description: "Connect to your MetaMask Wallet",
-    },
-    {
-        id: "coinbase",
-        name: "Coinbase Wallet",
-        icon: "https://storage.googleapis.com/coinbase-images/wallet-logo.png",
-        description: "Connect using Coinbase Wallet",
-    },
-    {
-        id: "walletconnect",
-        name: "WalletConnect",
-        icon: "https://1000logos.net/wp-content/uploads/2022/05/WalletConnect-Logo.jpg",
-        description: "Connect with WalletConnect protocol",
-    },
-    {
-        id: "trust",
-        name: "Trust Wallet",
-        icon: "https://trustwallet.com/assets/images/media/assets/trust_platform.png",
-        description: "Connect using Trust Wallet",
-    },
-    {
-        id: "ledger",
-        name: "Ledger",
-        icon: "https://cryptologos.cc/logos/ledger-token-logo.png",
-        description: "Connect to your hardware wallet",
-    },
-];
 
 export const WalletModal: React.FC<WalletModalProps> = ({
     isOpen,
     onClose,
-    onConnect,
 }) => {
-    if (!isOpen) return null;
+    const { connectors, connect } = useConnect();
+    const { isConnected } = useAccount();
+
+    if (!isOpen || isConnected) return null;
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in">
@@ -73,36 +36,31 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         create a new one
                     </p>
                     <div className="space-y-2">
-                        {wallets.map((wallet) => (
+                        {connectors.map((wallet) => (
                             <button
                                 key={wallet.id}
-                                onClick={() => onConnect(wallet.id)}
+                                onClick={() => connect({ connector: wallet })}
                                 className="w-full flex items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
                             >
                                 <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center mr-3 bg-white">
-                                    <img
-                                        src={wallet.icon}
-                                        alt={`${wallet.name} logo`}
-                                        className="w-8 h-8 object-contain"
-                                    />
+                                    {wallet.icon ? (
+                                        <img
+                                            src={wallet.icon}
+                                            alt={`${wallet.name} logo`}
+                                            className="w-8 h-8 object-contain"
+                                        />
+                                    ) : (
+                                        <Wallet2Icon className="w-8 h-8 object-contain" />
+                                    )}
                                 </div>
                                 <div className="text-left">
                                     <div className="font-medium text-gray-800">
                                         {wallet.name}
                                     </div>
-                                    {wallet.description && (
-                                        <div className="text-xs text-gray-500">
-                                            {wallet.description}
-                                        </div>
-                                    )}
                                 </div>
                             </button>
                         ))}
                     </div>
-                </div>
-                <div className="bg-gray-50 p-4 text-center text-xs text-gray-500">
-                    By connecting a wallet, you agree to our Terms of Service
-                    and Privacy Policy
                 </div>
             </div>
         </div>

@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "main": "dist/index.js",
     "scripts": {
-        "start": "tsc -b && node dist/index.js"
+        "start": "tsc -b && node dist/index.js",
+        "build:watch": "tsc -b --watch",
+        "dev": "tsc -b && npx nodemon dist/index.js"
     },
     "keywords": [],
     "author": "",
@@ -15,6 +17,8 @@
     },
     "dependencies": {
         "@prisma/client": "^6.9.0",
+        "@types/cors": "^2.8.19",
+        "cors": "^2.8.5",
         "dotenv": "^16.5.0",
         "express": "^5.1.0"
     }

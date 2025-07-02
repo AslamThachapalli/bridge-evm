@@ -1,19 +1,47 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircleIcon, ArrowRightIcon } from "lucide-react";
-import { type Transaction, useTransactions } from "./TransactionContext";
+import { type PendingLock, type PendingBurn } from "@/types/bridge";
+import {
+    useWriteContract,
+    useWaitForTransactionReceipt,
+    useAccount,
+    useChainId,
+    useSwitchChain,
+} from "wagmi";
+import { getBridgeAddress } from "@/config/contracts";
+import { BRIDGE_BASE_ABI } from "@/lib/BaseBridgeAbi";
+import { BRIDGE_ETH_ABI } from "@/lib/EthBridgeAbi";
+import { parseEther } from "viem";
+import { useQueryClient } from "@tanstack/react-query";
+import { baseSepolia, sepolia } from "wagmi/chains";
 
 interface PendingTransactionsProps {
-    pendingLocks: Transaction[];
-    pendingBurns: Transaction[];
+    pendingLocks: PendingLock[];
+    pendingBurns: PendingBurn[];
 }
 
 export const PendingTransactions = ({
     pendingLocks,
     pendingBurns,
 }: PendingTransactionsProps) => {
+    const { address } = useAccount();
+    const chainId = useChainId();
+    const { switchChain } = useSwitchChain();
     const [selectedLocks, setSelectedLocks] = useState<string[]>([]);
     const [selectedBurns, setSelectedBurns] = useState<string[]>([]);
-    const { batchMint, batchUnlock } = useTransactions();
+    const [status, setStatus] = useState<{
+        action: "minting" | "unlocking" | "none";
+        amount: number | null;
+    }>({ action: "none", amount: null });
+    const {
+        writeContract,
+        data: writeData,
+        isPending: isWritePending,
+    } = useWriteContract();
+    const { isLoading: isTransactionPending } = useWaitForTransactionReceipt({
+        hash: writeData,
+    });
+    const queryClient = useQueryClient();
 
     const handleLockSelection = (txId: string) => {
         setSelectedLocks((prev) =>
@@ -31,29 +59,120 @@ export const PendingTransactions = ({
         );
     };
 
-    const handleMint = () => {
+    useEffect(() => {
+        if (!isWritePending && writeData && status.action !== "none") {
+            if (status.action === "minting") {
+                // After successful mint, call backend API to record the transaction
+                fetch("http://localhost:5000/eth-to-base/mint", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        mintTxHash: writeData,
+                        user: address,
+                        lockIds: selectedLocks,
+                        totalAmount: status.amount,
+                    }),
+                }).then(() => {
+                    // Refetch pending transactions
+                    queryClient.invalidateQueries({
+                        queryKey: ["pendingMints"],
+                    });
+                });
+
+                setSelectedLocks([]);
+                setStatus({ action: "none", amount: null });
+            } else if (status.action === "unlocking") {
+                // After successful unlock, call backend API to record the transaction
+                fetch("http://localhost:5000/base-to-eth/unlock", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        unlockTxHash: writeData,
+                        user: address,
+                        burnIds: selectedBurns,
+                        totalAmount: status.amount,
+                    }),
+                }).then(() => {
+                    // Refetch pending transactions
+                    queryClient.invalidateQueries({
+                        queryKey: ["pendingUnlocks"],
+                    });
+                });
+
+                setSelectedBurns([]);
+                setStatus({ action: "none", amount: null });
+            }
+        }
+    }, [writeData, status]);
+
+    const handleMint = async () => {
         if (selectedLocks.length > 0) {
-            batchMint(selectedLocks);
-            setSelectedLocks([]);
+            const selectedLocksData = pendingLocks.filter((lock) =>
+                selectedLocks.includes(lock.id)
+            );
+            const totalAmount = selectedLocksData.reduce(
+                (sum, lock) => sum + lock.amount,
+                0
+            );
+
+            try {
+                if (chainId !== baseSepolia.id) {
+                    switchChain({ chainId: baseSepolia.id });
+                }
+                writeContract({
+                    address: getBridgeAddress("base") as `0x${string}`,
+                    abi: BRIDGE_BASE_ABI,
+                    functionName: "mint",
+                    args: [parseEther(totalAmount.toString())],
+                    chainId: baseSepolia.id,
+                });
+
+                setStatus({ action: "minting", amount: totalAmount });
+            } catch (error) {
+                console.error("Mint failed:", error);
+            }
         }
     };
 
-    const handleUnlock = () => {
+    const handleUnlock = async () => {
         if (selectedBurns.length > 0) {
-            batchUnlock(selectedBurns);
-            setSelectedBurns([]);
+            const selectedBurnsData = pendingBurns.filter((burn) =>
+                selectedBurns.includes(burn.id)
+            );
+            const totalAmount = selectedBurnsData.reduce(
+                (sum, burn) => sum + burn.amount,
+                0
+            );
+
+            try {
+                if (chainId !== sepolia.id) {
+                    switchChain({ chainId: sepolia.id });
+                }
+                writeContract({
+                    address: getBridgeAddress("ethereum") as `0x${string}`,
+                    abi: BRIDGE_ETH_ABI,
+                    functionName: "unlock",
+                    args: [parseEther(totalAmount.toString())],
+                });
+
+                setStatus({ action: "unlocking", amount: totalAmount });
+            } catch (error) {
+                console.error("Unlock failed:", error);
+            }
         }
     };
 
     const calculateTotalAmount = (
-        transactions: Transaction[],
+        transactions: (PendingLock | PendingBurn)[],
         selectedIds: string[]
     ) => {
         return transactions
             .filter((tx) => selectedIds.includes(tx.id))
-            .reduce((sum, tx) => sum + parseFloat(tx.amount), 0)
+            .reduce((sum, tx) => sum + tx.amount, 0)
             .toFixed(4);
     };
+
+    const isProcessing = isWritePending || isTransactionPending;
 
     return (
         <div>
@@ -65,14 +184,18 @@ export const PendingTransactions = ({
                         </h3>
                         <button
                             onClick={handleMint}
-                            disabled={selectedLocks.length === 0}
+                            disabled={
+                                selectedLocks.length === 0 || isProcessing
+                            }
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                selectedLocks.length > 0
+                                selectedLocks.length > 0 && !isProcessing
                                     ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm hover:shadow"
                                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                             }`}
                         >
-                            Mint Selected ({selectedLocks.length})
+                            {isProcessing
+                                ? "Processing..."
+                                : `Mint Selected (${selectedLocks.length})`}
                         </button>
                     </div>
                     {selectedLocks.length > 0 && (
@@ -132,8 +255,7 @@ export const PendingTransactions = ({
                                                 {lock.amount} ETH
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                Locked{" "}
-                                                {formatTimeAgo(lock.timestamp)}
+                                                Locked
                                             </div>
                                         </div>
                                     </div>
@@ -166,14 +288,18 @@ export const PendingTransactions = ({
                         </h3>
                         <button
                             onClick={handleUnlock}
-                            disabled={selectedBurns.length === 0}
+                            disabled={
+                                selectedBurns.length === 0 || isProcessing
+                            }
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                selectedBurns.length > 0
+                                selectedBurns.length > 0 && !isProcessing
                                     ? "bg-gradient-to-r from-purple-500 to-blue-600 text-white shadow-sm hover:shadow"
                                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                             }`}
                         >
-                            Unlock Selected ({selectedBurns.length})
+                            {isProcessing
+                                ? "Processing..."
+                                : `Unlock Selected (${selectedBurns.length})`}
                         </button>
                     </div>
                     {selectedBurns.length > 0 && (
@@ -233,8 +359,7 @@ export const PendingTransactions = ({
                                                 {burn.amount} ETH
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                Burned{" "}
-                                                {formatTimeAgo(burn.timestamp)}
+                                                Burned
                                             </div>
                                         </div>
                                     </div>
@@ -259,27 +384,6 @@ export const PendingTransactions = ({
                     </div>
                 </div>
             )}
-            {pendingLocks.length === 0 && pendingBurns.length === 0 && (
-                <div className="text-center py-10">
-                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                        <CheckCircleIcon className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-800 mb-2">
-                        No Pending Transactions
-                    </h3>
-                    <p className="text-gray-500 text-sm">
-                        All your transactions have been processed.
-                    </p>
-                </div>
-            )}
         </div>
     );
 };
-
-function formatTimeAgo(timestamp: number): string {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return `${seconds} seconds ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    return `${Math.floor(seconds / 86400)} days ago`;
-}

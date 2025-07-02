@@ -1,5 +1,5 @@
 import { Router } from "express";
-import prisma from "utils/prisma";
+import prisma from "../utils/prisma";
 
 const router = Router();
 
@@ -66,7 +66,7 @@ router.post("/unlock", async (req, res) => {
         },
     });
 
-    for (let id in burnIds) {
+    for (let id of burnIds) {
         await prisma.burns.update({
             where: {
                 id,
