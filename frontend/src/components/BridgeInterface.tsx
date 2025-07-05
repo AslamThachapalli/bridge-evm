@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowUpDown, CheckCircle, AlertCircle } from "lucide-react";
 import { ChainSelector } from "./ChainSelector";
-// import { TransactionStatus } from "./TransactionStatus";
 import { PendingTransactions } from "./PendingTransactions";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -23,12 +22,18 @@ import {
     type PendingUnlocksResponse,
 } from "@/types/bridge";
 import { baseSepolia, sepolia } from "wagmi/chains";
+import { TransactionStatus } from "./TransactionStatus";
 
 export const BridgeInterface = () => {
     const [fromChain, setFromChain] = useState<ChainType>("ethereum");
     const [toChain, setToChain] = useState<ChainType>("base");
     const [amount, setAmount] = useState("");
-    const [isProcessing, setIsProcessing] = useState(false);
+    const [isProcessing, setIsProcessing] = useState<{
+        status: boolean;
+        currentStep: number;
+        type: TransactionType;
+        steps: string[];
+    } | null>(null);
     const [activeTab, setActiveTab] = useState<"bridge" | "pending">("bridge");
     const [needsApproval, setNeedsApproval] = useState(false);
     const { address } = useAccount();
@@ -57,6 +62,23 @@ export const BridgeInterface = () => {
                     `http://localhost:5000/eth-to-base/pending/${address}`
                 );
                 const data = await res.json();
+
+                if (isProcessing && isProcessing.type === "lock") {
+                    setIsProcessing((prev) => {
+                        if (prev) {
+                            return {
+                                ...prev,
+                                currentStep: 2,
+                            };
+                        }
+                        return null;
+                    });
+
+                    setTimeout(() => {
+                        setIsProcessing(null);
+                    }, 2000);
+                }
+
                 return data;
             },
             enabled: !!address,
@@ -70,6 +92,22 @@ export const BridgeInterface = () => {
                     `http://localhost:5000/base-to-eth/pending/${address}`
                 );
                 const data = await res.json();
+
+                if (isProcessing && isProcessing.type === "burn") {
+                    setIsProcessing((prev) => {
+                        if (prev) {
+                            return {
+                                ...prev,
+                                currentStep: 2,
+                            };
+                        }
+                        return null;
+                    });
+
+                    setTimeout(() => {
+                        setIsProcessing(null);
+                    }, 2000);
+                }
                 return data;
             },
             enabled: !!address,
@@ -90,7 +128,6 @@ export const BridgeInterface = () => {
 
         if (amount && fromChain === "base" && toChain === "ethereum") {
             const canBurn = tokenApproval.checkCanBurn(amount);
-            console.log("canBurn", canBurn);
             setNeedsApproval(!canBurn);
         }
     }, [amount, fromChain, toChain, tokenApproval]);
@@ -134,6 +171,15 @@ export const BridgeInterface = () => {
             const { hasLocked } = await response.json();
             if (hasLocked) {
                 refetchPendingMints();
+                setIsProcessing((prev) => {
+                    if (prev) {
+                        return {
+                            ...prev,
+                            currentStep: 2,
+                        };
+                    }
+                    return null;
+                });
                 setTimeout(() => setLockedHash(null), 500);
             }
             return hasLocked as boolean;
@@ -161,11 +207,21 @@ export const BridgeInterface = () => {
 
     useEffect(() => {
         if (writeData) {
+            setIsProcessing((prev) => {
+                if (prev) {
+                    return {
+                        ...prev,
+                        currentStep: 1,
+                    };
+                }
+                return null;
+            });
             if (getTransactionType() === "lock") {
                 setLockedHash(writeData);
                 refetchHasLocked();
             } else if (getTransactionType() === "burn") {
                 setBurntHash(writeData);
+                tokenApproval.refetchBalance();
                 refetchHasBurnt();
             }
         }
@@ -179,7 +235,25 @@ export const BridgeInterface = () => {
             return; // Don't proceed if approval is needed
         }
 
-        setIsProcessing(true);
+        const steps =
+            getTransactionType() === "lock"
+                ? [
+                      "Intiating lock process",
+                      "Confirming on Blockchain",
+                      "Finalizing",
+                  ]
+                : [
+                      "Initiating burn process",
+                      "Confirming on Blockchain",
+                      "Finalizing",
+                  ];
+
+        setIsProcessing({
+            status: true,
+            currentStep: 0,
+            type: getTransactionType(),
+            steps: steps,
+        });
 
         switch (getTransactionType()) {
             case "lock":
@@ -206,15 +280,20 @@ export const BridgeInterface = () => {
                 });
                 break;
         }
+        setAmount("");
     };
 
-    // Reset processing state when transaction is complete
-    useEffect(() => {
-        if (!isWritePending && isProcessing) {
-            setIsProcessing(false);
-            setAmount("");
-        }
-    }, [isWritePending, isProcessing]);
+    if (isProcessing && isProcessing.status) {
+        return (
+            <TransactionStatus
+                amount={amount}
+                currentStep={isProcessing.currentStep}
+                steps={isProcessing.steps}
+                type={isProcessing.type}
+                hash={writeData || ""}
+            />
+        );
+    }
 
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
@@ -397,7 +476,7 @@ export const BridgeInterface = () => {
                         <button
                             type="submit"
                             disabled={
-                                isProcessing ||
+                                isProcessing?.status ||
                                 !amount ||
                                 (getTransactionType() === "lock" &&
                                     needsApproval) ||

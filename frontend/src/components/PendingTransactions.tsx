@@ -33,6 +33,7 @@ export const PendingTransactions = ({
         action: "minting" | "unlocking" | "none";
         amount: number | null;
     }>({ action: "none", amount: null });
+
     const {
         writeContract,
         data: writeData,
