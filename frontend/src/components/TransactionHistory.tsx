@@ -1,19 +1,22 @@
 import { useState } from "react";
 import {
     CheckCircleIcon,
-    XCircleIcon,
     ClockIcon,
     ArrowRightIcon,
-    SearchIcon,
+    CopyIcon,
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
-import { type ChainType, type Transaction } from "@/types/bridge";
+import {
+    type ChainType,
+    type Transaction,
+    type TransactionType,
+} from "@/types/bridge";
+import { toast } from "sonner";
 
 export const TransactionHistory = () => {
     const { address } = useAccount();
-    const [activeFilter, setActiveFilter] = useState<ChainType | "all">("all");
-    const [searchTerm, setSearchTerm] = useState("");
+    const [activeFilter, setActiveFilter] = useState<ChainType>("ethereum");
 
     // Fetch transaction history from backend APIs
     const { data: ethHistory } = useQuery({
@@ -22,9 +25,8 @@ export const TransactionHistory = () => {
             const response = await fetch(
                 `http://localhost:5000/eth-to-base/history/${address}`,
                 {
-                    method: "POST",
+                    method: "GET",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({}),
                 }
             );
             const data = await response.json();
@@ -39,9 +41,8 @@ export const TransactionHistory = () => {
             const response = await fetch(
                 `http://localhost:5000/base-to-eth/history/${address}`,
                 {
-                    method: "POST",
+                    method: "GET",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({}),
                 }
             );
             const data = await response.json();
@@ -50,39 +51,42 @@ export const TransactionHistory = () => {
         enabled: !!address,
     });
 
-    // Combine and format history data
-    const allTransactions: Transaction[] = [
-        ...(ethHistory || []).map((tx: any) => ({
-            id: tx.txHash,
-            type: tx.action as any,
-            fromChain: "ethereum" as ChainType,
-            toChain: tx.action === "lock" ? "base" : ("ethereum" as ChainType),
-            amount: tx.amount.toString(),
-            status: "confirmed" as any,
-            hash: tx.txHash,
-            timestamp: Date.now() - Math.random() * 86400000, // Mock timestamp
-        })),
-        ...(baseHistory || []).map((tx: any) => ({
-            id: tx.txHash,
-            type: tx.action as any,
-            fromChain: "base" as ChainType,
-            toChain: tx.action === "burn" ? "ethereum" : ("base" as ChainType),
-            amount: tx.amount.toString(),
-            status: "confirmed" as any,
-            hash: tx.txHash,
-            timestamp: Date.now() - Math.random() * 86400000, // Mock timestamp
-        })),
-    ];
+    const mapToTransaction = (txInfo: {
+        txHash: string;
+        action: string;
+        amount: number;
+        timestamp: number;
+        fromChain: ChainType;
+        toChain: ChainType;
+    }): Transaction => {
+        return {
+            id: txInfo.txHash,
+            type: txInfo.action as TransactionType,
+            fromChain: txInfo.fromChain,
+            toChain: txInfo.toChain,
+            amount: txInfo.amount.toString(),
+            status: "confirmed",
+            hash: txInfo.txHash,
+            timestamp: txInfo.timestamp,
+        };
+    };
 
-    const filteredTransactions = allTransactions.filter(
-        (tx) =>
-            (activeFilter === "all" ||
-                tx.fromChain === activeFilter ||
-                tx.toChain === activeFilter) &&
-            (searchTerm === "" ||
-                tx.hash.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                tx.amount.includes(searchTerm))
-    );
+    const filteredTransactions =
+        activeFilter === "ethereum"
+            ? ethHistory?.map((tx: any) =>
+                  mapToTransaction({
+                      ...tx,
+                      fromChain: "ethereum",
+                      toChain: "base",
+                  })
+              )
+            : baseHistory?.map((tx: any) =>
+                  mapToTransaction({
+                      ...tx,
+                      fromChain: "base",
+                      toChain: "ethereum",
+                  })
+              );
 
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
@@ -91,11 +95,6 @@ export const TransactionHistory = () => {
             </h2>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div className="flex space-x-2">
-                    <FilterButton
-                        label="All"
-                        active={activeFilter === "all"}
-                        onClick={() => setActiveFilter("all")}
-                    />
                     <FilterButton
                         label="Ethereum"
                         active={activeFilter === "ethereum"}
@@ -107,20 +106,10 @@ export const TransactionHistory = () => {
                         onClick={() => setActiveFilter("base")}
                     />
                 </div>
-                <div className="relative">
-                    <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="Search by hash or amount"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg w-full md:w-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                </div>
             </div>
             <div className="space-y-4">
-                {filteredTransactions.length > 0 ? (
-                    filteredTransactions.map((tx) => (
+                {filteredTransactions && filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((tx: Transaction) => (
                         <TransactionCard key={tx.id} transaction={tx} />
                     ))
                 ) : (
@@ -132,11 +121,7 @@ export const TransactionHistory = () => {
                             No transactions found
                         </h3>
                         <p className="text-gray-500 text-sm">
-                            {searchTerm
-                                ? "Try adjusting your search term"
-                                : activeFilter !== "all"
-                                ? `No transactions for ${activeFilter} chain`
-                                : "Start bridging to see your transactions here"}
+                            {`No transactions for ${activeFilter} chain`}
                         </p>
                     </div>
                 )}
@@ -169,19 +154,6 @@ interface TransactionCardProps {
 }
 
 const TransactionCard = ({ transaction }: TransactionCardProps) => {
-    const getStatusIcon = () => {
-        switch (transaction.status) {
-            case "confirmed":
-                return <CheckCircleIcon className="w-4 h-4 text-green-500" />;
-            case "failed":
-                return <XCircleIcon className="w-4 h-4 text-red-500" />;
-            case "pending":
-                return <ClockIcon className="w-4 h-4 text-yellow-500" />;
-            default:
-                return null;
-        }
-    };
-
     const getTransactionTypeLabel = () => {
         switch (transaction.type) {
             case "lock":
@@ -192,8 +164,6 @@ const TransactionCard = ({ transaction }: TransactionCardProps) => {
                 return "Burn";
             case "unlock":
                 return "Unlock";
-            default:
-                return "Transfer";
         }
     };
 
@@ -220,15 +190,10 @@ const TransactionCard = ({ transaction }: TransactionCardProps) => {
         <div className="bg-white rounded-lg border border-gray-200 p-4 transition-all hover:shadow-md">
             <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center">
-                    {getStatusIcon()}
+                    {<CheckCircleIcon className="w-4 h-4 text-green-500" />}
                     <span className="ml-2 font-medium text-gray-800">
                         {getTransactionTypeLabel()}
                     </span>
-                    {transaction.relatedTxId && (
-                        <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                            Related
-                        </span>
-                    )}
                 </div>
                 <span className="text-sm text-gray-500">
                     {formatTime(transaction.timestamp)}
@@ -282,9 +247,16 @@ const TransactionCard = ({ transaction }: TransactionCardProps) => {
                 <span className="font-medium">{transaction.amount} ETH</span>
             </div>
             <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between text-xs text-gray-500">
-                <span>
+                <span className="flex items-center gap-2">
                     Hash: {transaction.hash.substring(0, 6)}...
                     {transaction.hash.substring(transaction.hash.length - 4)}
+                    <CopyIcon
+                        className="w-4 h-4 text-gray-400 cursor-pointer"
+                        onClick={() => {
+                            navigator.clipboard.writeText(transaction.hash);
+                            toast.success("Copied to clipboard");
+                        }}
+                    />
                 </span>
                 <span>
                     {new Date(transaction.timestamp).toLocaleDateString()}

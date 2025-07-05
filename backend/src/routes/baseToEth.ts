@@ -83,7 +83,7 @@ router.post("/unlock", async (req, res) => {
 });
 
 // Show burn + unlock history for user
-router.post("/history/:address", async (req, res) => {
+router.get("/history/:address", async (req, res) => {
     const { address } = req.params;
     const history = [];
 
@@ -95,6 +95,7 @@ router.post("/history/:address", async (req, res) => {
         select: {
             txHash: true,
             amount: true,
+            createdAt: true,
         },
         orderBy: {
             createdAt: "desc",
@@ -104,8 +105,9 @@ router.post("/history/:address", async (req, res) => {
     for (let burn of lockedBurns) {
         history.push({
             txHash: burn.txHash,
-            action: "locked",
+            action: "burn",
             amount: burn.amount,
+            timestamp: burn.createdAt.getTime(),
         });
     }
 
@@ -121,6 +123,7 @@ router.post("/history/:address", async (req, res) => {
                 select: {
                     amount: true,
                     txHash: true,
+                    createdAt: true,
                 },
             },
         },
@@ -134,6 +137,7 @@ router.post("/history/:address", async (req, res) => {
             txHash: unlock.txHash,
             action: "unlock",
             amount: unlock.amount,
+            timestamp: unlock.createdAt.getTime(),
         });
 
         for (let burn of unlock.burns) {
@@ -141,6 +145,7 @@ router.post("/history/:address", async (req, res) => {
                 txHash: burn.txHash,
                 action: "burn",
                 amount: burn.amount,
+                timestamp: burn.createdAt.getTime(),
             });
         }
     }

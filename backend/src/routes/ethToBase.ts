@@ -83,7 +83,7 @@ router.post("/mint", async (req, res) => {
 });
 
 // Show lock + mint history for user
-router.post("/history/:address", async (req, res) => {
+router.get("/history/:address", async (req, res) => {
     const { address } = req.params;
     const history = [];
 
@@ -95,6 +95,7 @@ router.post("/history/:address", async (req, res) => {
         select: {
             txHash: true,
             amount: true,
+            createdAt: true,
         },
         orderBy: {
             createdAt: "desc",
@@ -104,8 +105,9 @@ router.post("/history/:address", async (req, res) => {
     for (let lock of unmintedLocks) {
         history.push({
             txHash: lock.txHash,
-            action: "unminted",
+            action: "lock",
             amount: lock.amount,
+            timestamp: lock.createdAt.getTime(),
         });
     }
 
@@ -121,6 +123,7 @@ router.post("/history/:address", async (req, res) => {
                 select: {
                     amount: true,
                     txHash: true,
+                    createdAt: true,
                 },
             },
         },
@@ -134,6 +137,7 @@ router.post("/history/:address", async (req, res) => {
             txHash: mint.txHash,
             action: "mint",
             amount: mint.amount,
+            timestamp: mint.createdAt.getTime(),
         });
 
         for (let lock of mint.locks) {
@@ -141,6 +145,7 @@ router.post("/history/:address", async (req, res) => {
                 txHash: lock.txHash,
                 action: "lock",
                 amount: lock.amount,
+                timestamp: lock.createdAt.getTime(),
             });
         }
     }
