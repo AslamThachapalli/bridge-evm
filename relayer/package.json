@@ -3,8 +3,9 @@
     "version": "1.0.0",
     "main": "dist/index.js",
     "scripts": {
+        "build": "tsc -b",
         "build:watch": "tsc -b --watch",
-        "dev": "tsc -b && npx nodemon dist/index.js"
+        "dev": "npm run build && npx nodemon dist/index.js"
     },
     "keywords": [],
     "author": "",
@@ -16,6 +17,7 @@
         "ethers": "^6.14.3"
     },
     "devDependencies": {
-        "prisma": "^6.9.0"
+        "prisma": "^6.9.0",
+        "typescript": "^5.9.2"
     }
 }

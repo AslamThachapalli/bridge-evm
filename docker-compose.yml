@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+    postgres:
+        image: postgres:15
+        restart: always
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: mypassword
+            POSTGRES_DB: postgres
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+
+    backend:
+        build: ./backend
+        depends_on:
+            - postgres
+        environment:
+            PORT: 5000
+            DATABASE_URL: ${DATABASE_URL}
+        ports:
+            - "5000:5000"
+
+    relayer:
+        build: ./relayer
+        depends_on:
+            - postgres
+        environment:
+            ETH_SEPOLIA_RPC: ${ETH_SEPOLIA_RPC}
+            BASE_SEPOLIA_RPC: ${BASE_SEPOLIA_RPC}
+            ETH_BRIDGE_CONTRACT_ADDRESS: ${ETH_BRIDGE_CONTRACT_ADDRESS}
+            BASE_BRIDGE_CONTRACT_ADDRESS: ${BASE_BRIDGE_CONTRACT_ADDRESS}
+            PRIVATE_KEY_FILE: /run/secrets/relayer_private_key
+        secrets:
+            - relayer_private_key
+
+    frontend:
+        build: ./frontend
+        environment:
+            VITE_ETH_SEPOLIA_RPC: ${ETH_SEPOLIA_RPC}
+            VITE_BASE_SEPOLIA_RPC: ${BASE_SEPOLIA_RPC}
+            VITE_ETH_BRIDGE_ADDRESS: ${ETH_BRIDGE_CONTRACT_ADDRESS}
+            VITE_BASE_BRIDGE_ADDRESS: ${BASE_BRIDGE_CONTRACT_ADDRESS}
+            VITE_ASLC_TOKEN_ADDRESS: ${ASLC_TOKEN_ADDRESS}
+            VITE_BASLC_TOKEN_ADDRESS: ${BASLC_TOKEN_ADDRESS}
+            VITE_BACKEND_URL: http://backend:5000
+        ports:
+            - "3000:80"
+        depends_on:
+            - backend
+
+secrets:
+    relayer_private_key:
+        file: ./private-key.txt
+
+volumes:
+    postgres_data:

@@ -3,9 +3,10 @@
     "version": "1.0.0",
     "main": "dist/index.js",
     "scripts": {
-        "start": "tsc -b && node dist/index.js",
+        "build": "tsc -b",
         "build:watch": "tsc -b --watch",
-        "dev": "tsc -b && npx nodemon dist/index.js"
+        "start": "npm run build && node dist/index.js",
+        "dev": "npm run build && npx nodemon dist/index.js"
     },
     "keywords": [],
     "author": "",
@@ -13,7 +14,8 @@
     "description": "",
     "devDependencies": {
         "@types/express": "^5.0.3",
-        "prisma": "^6.9.0"
+        "prisma": "^6.9.0",
+        "typescript": "^5.9.2"
     },
     "dependencies": {
         "@prisma/client": "^6.9.0",
