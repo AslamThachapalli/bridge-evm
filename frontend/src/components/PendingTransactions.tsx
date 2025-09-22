@@ -64,7 +64,7 @@ export const PendingTransactions = ({
         if (!isWritePending && writeData && status.action !== "none") {
             if (status.action === "minting") {
                 // After successful mint, call backend API to record the transaction
-                fetch("http://localhost:5000/eth-to-base/mint", {
+                fetch(`${import.meta.env.VITE_BACKEND_URL}/eth-to-base/mint`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -84,7 +84,7 @@ export const PendingTransactions = ({
                 setStatus({ action: "none", amount: null });
             } else if (status.action === "unlocking") {
                 // After successful unlock, call backend API to record the transaction
-                fetch("http://localhost:5000/base-to-eth/unlock", {
+                fetch(`${import.meta.env.VITE_BACKEND_URL}/base-to-eth/unlock`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

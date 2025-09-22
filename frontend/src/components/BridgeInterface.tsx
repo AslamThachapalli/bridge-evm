@@ -8,7 +8,6 @@ import {
     useWriteContract,
     useChainId,
     useSwitchChain,
-    // useWaitForTransactionReceipt,
 } from "wagmi";
 import { useTokenApproval } from "../hooks/useTokenApproval";
 import { getBridgeAddress } from "@/config/contracts";
@@ -40,6 +39,7 @@ export const BridgeInterface = () => {
     const {
         data: writeData,
         writeContract,
+        error: writeError,
         isPending: isWritePending,
     } = useWriteContract();
     const chainId = useChainId();
@@ -51,6 +51,12 @@ export const BridgeInterface = () => {
         }
     }, []);
 
+    useEffect(() => {
+        if (writeError) {
+            setIsProcessing(null);
+        }
+    }, [writeError]);
+
     // Token approval hook for the source chain
     const tokenApproval = useTokenApproval(fromChain);
 
@@ -59,7 +65,7 @@ export const BridgeInterface = () => {
             queryKey: ["pendingMints", address],
             queryFn: async () => {
                 const res = await fetch(
-                    `http://localhost:5000/eth-to-base/pending/${address}`
+                    `${import.meta.env.VITE_BACKEND_URL}/eth-to-base/pending/${address}`
                 );
                 const data = await res.json();
 
@@ -89,7 +95,7 @@ export const BridgeInterface = () => {
             queryKey: ["pendingUnlocks", address],
             queryFn: async () => {
                 const res = await fetch(
-                    `http://localhost:5000/base-to-eth/pending/${address}`
+                    `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/pending/${address}`
                 );
                 const data = await res.json();
 
@@ -166,7 +172,7 @@ export const BridgeInterface = () => {
         queryKey: ["hasLocked", lockedHash],
         queryFn: async () => {
             const response = await fetch(
-                `http://localhost:5000/eth-to-base/hasLocked/${lockedHash}`
+                `${import.meta.env.VITE_BACKEND_URL}/eth-to-base/hasLocked/${lockedHash}`
             );
             const { hasLocked } = await response.json();
             if (hasLocked) {
@@ -192,7 +198,7 @@ export const BridgeInterface = () => {
         queryKey: ["hasBurnt", burntHash],
         queryFn: async () => {
             const response = await fetch(
-                `http://localhost:5000/base-to-eth/hasBurnt/${burntHash}`
+                `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/hasBurnt/${burntHash}`
             );
             const { hasBurnt } = await response.json();
             if (hasBurnt) {

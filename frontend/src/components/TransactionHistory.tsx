@@ -23,7 +23,7 @@ export const TransactionHistory = () => {
         queryKey: ["ethHistory", address],
         queryFn: async () => {
             const response = await fetch(
-                `http://localhost:5000/eth-to-base/history/${address}`,
+                `${import.meta.env.VITE_BACKEND_URL}/eth-to-base/history/${address}`,
                 {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
@@ -39,7 +39,7 @@ export const TransactionHistory = () => {
         queryKey: ["baseHistory", address],
         queryFn: async () => {
             const response = await fetch(
-                `http://localhost:5000/base-to-eth/history/${address}`,
+                `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/history/${address}`,
                 {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import "src/BridgeETH.sol";
@@ -8,7 +8,7 @@ import "src/ASLC.sol";
 contract BridgeETHTest is Test {
     BridgeETH bridgeEth;
     ASLC aslc;
-    event Deposit(address indexed depositor, uint256 amount);
+    event Deposit(address indexed depositor, uint256 amount, uint256 nonce);
 
     address user = address(1);
 
@@ -21,7 +21,7 @@ contract BridgeETHTest is Test {
         aslc.approve(address(bridgeEth), 50);
 
         vm.expectEmit(true, false, false, true);
-        emit Deposit(address(this), 50);
+        emit Deposit(address(this), 50, 1);
         bridgeEth.lock(50);
     }
 
@@ -47,7 +47,7 @@ contract BridgeETHTest is Test {
         bridgeEth.lock(amount);
         vm.stopPrank();
 
-        bridgeEth.burnedOnOppositeChain(user, amount);
+        bridgeEth.burnedOnOppositeChain(user, amount, 1);
 
         vm.startPrank(user);
         uint256 balanceBefore = aslc.balanceOf(user);
@@ -61,7 +61,7 @@ contract BridgeETHTest is Test {
         uint256 amount = 50 ether;
 
         // Owner only sets pendingBalance to 10 ether
-        bridgeEth.burnedOnOppositeChain(user, 10 ether);
+        bridgeEth.burnedOnOppositeChain(user, 10 ether, 1);
 
         // User tries to unlock 50 ether (should revert)
         vm.startPrank(user);

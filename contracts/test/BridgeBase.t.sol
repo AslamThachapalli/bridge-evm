@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 import "src/BridgeBase.sol";
@@ -9,7 +9,7 @@ contract BridgeBaseTest is Test {
     BASLC baslc;
     BridgeBase bridgeBase;
 
-    event Burn(address indexed burner, uint256 amount);
+    event Burn(address indexed burner, uint256 amount, uint256 nonce);
 
     address user = address(1);
 
@@ -22,7 +22,7 @@ contract BridgeBaseTest is Test {
 
     function testMint() public {
         uint256 amount = 100 ether;
-        bridgeBase.lockedOnOppositeChain(user, amount);
+        bridgeBase.lockedOnOppositeChain(user, amount, 1);
 
         vm.startPrank(user);
         uint256 balanceBefore = baslc.balanceOf(user);
@@ -33,7 +33,7 @@ contract BridgeBaseTest is Test {
     }
 
     function test_RevertWhen_NotEnoughBalanceForMinting() public {
-        bridgeBase.lockedOnOppositeChain(user, 50);
+        bridgeBase.lockedOnOppositeChain(user, 50, 1);
 
         vm.expectRevert();
         vm.prank(user);
@@ -46,7 +46,7 @@ contract BridgeBaseTest is Test {
 
         uint256 amount = 100;
         vm.expectEmit(true, false, false, true);
-        emit Burn(user, amount);
+        emit Burn(user, amount, 1);
         vm.prank(user);
         bridgeBase.burn(amount);
     }
