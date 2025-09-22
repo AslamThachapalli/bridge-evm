@@ -33,8 +33,10 @@ services:
             ETH_BRIDGE_CONTRACT_ADDRESS: ${ETH_BRIDGE_CONTRACT_ADDRESS}
             BASE_BRIDGE_CONTRACT_ADDRESS: ${BASE_BRIDGE_CONTRACT_ADDRESS}
             PRIVATE_KEY_FILE: /run/secrets/relayer_private_key
+            DATABASE_URL: ${DATABASE_URL}
         secrets:
             - relayer_private_key
+        command: sh -c "npx prisma migrate deploy && node dist/index.js"
 
     frontend:
         build: ./frontend
