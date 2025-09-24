@@ -5,6 +5,7 @@
     "scripts": {
         "build": "tsc -b",
         "build:watch": "tsc -b --watch",
+        "start": "npm run build && node dist/index.js",
         "dev": "npm run build && npx nodemon dist/index.js"
     },
     "keywords": [],
