@@ -55,9 +55,17 @@ export const listenToBridgeEvent = async (chain: Chain) => {
 
     if (blockStatus.lastProcessedBlock >= latestBlock) return;
 
+    // Since free tier rpc urls are limited to 10 blocks at a time, we listen to latest 10 blocks if there are more blocks to process.
+    // This works here just because this is a demo project.
+    // This is not the ideal way to do it in a production system. For that we must process it in chunks.
+    let fromBlock =
+        latestBlock - blockStatus.lastProcessedBlock >= 10
+            ? latestBlock - 9
+            : blockStatus.lastProcessedBlock + 1;
+
     const logs = await provider.getLogs({
         ...filter,
-        fromBlock: blockStatus.lastProcessedBlock + 1,
+        fromBlock,
         toBlock: "latest",
     });
 
