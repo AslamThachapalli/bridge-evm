@@ -14,6 +14,7 @@ import { BRIDGE_ETH_ABI } from "@/lib/EthBridgeAbi";
 import { parseEther } from "viem";
 import { useQueryClient } from "@tanstack/react-query";
 import { baseSepolia, sepolia } from "wagmi/chains";
+import { useTokenBalance } from "@/hooks/useTokenBalance";
 
 interface PendingTransactionsProps {
     pendingLocks: PendingLock[];
@@ -27,6 +28,7 @@ export const PendingTransactions = ({
     const { address } = useAccount();
     const chainId = useChainId();
     const { switchChain } = useSwitchChain();
+    const { refetchBalance } = useTokenBalance();
     const [selectedLocks, setSelectedLocks] = useState<string[]>([]);
     const [selectedBurns, setSelectedBurns] = useState<string[]>([]);
     const [status, setStatus] = useState<{
@@ -78,26 +80,31 @@ export const PendingTransactions = ({
                     queryClient.invalidateQueries({
                         queryKey: ["pendingMints"],
                     });
+                    refetchBalance();
                 });
 
                 setSelectedLocks([]);
                 setStatus({ action: "none", amount: null });
             } else if (status.action === "unlocking") {
                 // After successful unlock, call backend API to record the transaction
-                fetch(`${import.meta.env.VITE_BACKEND_URL}/base-to-eth/unlock`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        unlockTxHash: writeData,
-                        user: address,
-                        burnIds: selectedBurns,
-                        totalAmount: status.amount,
-                    }),
-                }).then(() => {
+                fetch(
+                    `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/unlock`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            unlockTxHash: writeData,
+                            user: address,
+                            burnIds: selectedBurns,
+                            totalAmount: status.amount,
+                        }),
+                    }
+                ).then(() => {
                     // Refetch pending transactions
                     queryClient.invalidateQueries({
                         queryKey: ["pendingUnlocks"],
                     });
+                    refetchBalance();
                 });
 
                 setSelectedBurns([]);

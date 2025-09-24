@@ -65,7 +65,9 @@ export const BridgeInterface = () => {
             queryKey: ["pendingMints", address],
             queryFn: async () => {
                 const res = await fetch(
-                    `${import.meta.env.VITE_BACKEND_URL}/eth-to-base/pending/${address}`
+                    `${
+                        import.meta.env.VITE_BACKEND_URL
+                    }/eth-to-base/pending/${address}`
                 );
                 const data = await res.json();
 
@@ -95,7 +97,9 @@ export const BridgeInterface = () => {
             queryKey: ["pendingUnlocks", address],
             queryFn: async () => {
                 const res = await fetch(
-                    `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/pending/${address}`
+                    `${
+                        import.meta.env.VITE_BACKEND_URL
+                    }/base-to-eth/pending/${address}`
                 );
                 const data = await res.json();
 
@@ -172,7 +176,9 @@ export const BridgeInterface = () => {
         queryKey: ["hasLocked", lockedHash],
         queryFn: async () => {
             const response = await fetch(
-                `${import.meta.env.VITE_BACKEND_URL}/eth-to-base/hasLocked/${lockedHash}`
+                `${
+                    import.meta.env.VITE_BACKEND_URL
+                }/eth-to-base/hasLocked/${lockedHash}`
             );
             const { hasLocked } = await response.json();
             if (hasLocked) {
@@ -198,7 +204,9 @@ export const BridgeInterface = () => {
         queryKey: ["hasBurnt", burntHash],
         queryFn: async () => {
             const response = await fetch(
-                `${import.meta.env.VITE_BACKEND_URL}/base-to-eth/hasBurnt/${burntHash}`
+                `${
+                    import.meta.env.VITE_BACKEND_URL
+                }/base-to-eth/hasBurnt/${burntHash}`
             );
             const { hasBurnt } = await response.json();
             if (hasBurnt) {
