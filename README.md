@@ -14,6 +14,9 @@ BASLC - ERC20 token deployed on Base Sepolia
 - 🔓 **Unlock** ASLC tokens back on Ethereum Sepolia
 - ⚡ Supports batching: lock/burn multiple times and mint/unlock in one go
 
+## Project Demo
+[![Watch the demo](demo-thumbnail.png)](https://youtu.be/uISql3_T8eU)
+
 ## 🚀 Running Locally
 
 > ⚠️ **Note**: For security reasons, you’ll deploy your **own contracts** instead of using mine.  
