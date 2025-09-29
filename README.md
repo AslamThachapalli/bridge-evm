@@ -17,6 +17,12 @@ BASLC - ERC20 token deployed on Base Sepolia
 ## Project Demo
 [![Watch the demo](demo-thumbnail.png)](https://youtu.be/uISql3_T8eU)
 
+**Deployed Contracts**
+- [Ethereum Sepolia Bridge Contract](https://sepolia.etherscan.io/address/0x6a0ff80d8e06fce94aa700d0a8b89956b1fdc4ac)
+- [Base Sepolia Bridge Contract](https://sepolia.basescan.org/address/0xff455879ca5e14dac4cf42f06ded2381e8f419e7)
+- [ASLC ERC20 Token - Token on Ethereum Chain](https://sepolia.etherscan.io/address/0xdbfd18549Cf11Db3Bd813717AaeB04132485ff2C)
+- [BASLC ERC20 Token - Bridged Token on Base Chain](https://sepolia.basescan.org/address/0xE2C3Ed6dAf75E1d6Aa6B28d88F2F6949C8E28a95)
+
 ## 🚀 Running Locally
 
 > ⚠️ **Note**: For security reasons, you’ll deploy your **own contracts** instead of using mine.  
